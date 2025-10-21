@@ -7,6 +7,7 @@ import {
   createPresentation,
   uploadImage,
   importPptxToServer,
+  getPresentationById,
 } from "@/api/api";
 
 export interface Slide {
@@ -228,13 +229,7 @@ export function PresentationProvider({
     presentationId: string
   ): Promise<Slide[] | null> => {
     try {
-      const response = await fetch(
-        `http://localhost:5000/api/presentations/${presentationId}`
-      );
-      if (!response.ok) {
-        throw new Error("Failed to fetch presentation");
-      }
-      const presentation = await response.json();
+      const presentation = await getPresentationById(presentationId);
 
       if (
         presentation &&
