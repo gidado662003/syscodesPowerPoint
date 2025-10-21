@@ -6,6 +6,7 @@ import {
   deleteSlideById,
   createPresentation,
   uploadImage,
+  importPptxToServer,
 } from "@/api/api";
 
 export interface Slide {
@@ -176,6 +177,11 @@ interface PresentationContextType {
   goToSlide: (index: number) => void;
   exportPresentation: (title?: string, userId?: string) => Promise<void>;
   importPresentation: (file: File) => Promise<void>;
+  loadPresentationById: (presentationId: string) => Promise<Slide[] | null>;
+  importPptxFile: (
+    file: File,
+    opts?: { title?: string; userId?: string }
+  ) => Promise<void>;
   setCurrentSlideId: (id: number) => void; // ✅ added
 }
 
@@ -217,29 +223,52 @@ export function PresentationProvider({
     }
   };
 
-  useEffect(() => {
-    // Try server first; fall back to localStorage if server returns nothing
-    const loadSlides = async () => {
-      const serverSlides = await handleGetAllSlides();
-      if (serverSlides && serverSlides.length > 0) {
-        return;
+  // Load presentation from server by ID
+  const loadPresentationById = async (
+    presentationId: string
+  ): Promise<Slide[] | null> => {
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/presentations/${presentationId}`
+      );
+      if (!response.ok) {
+        throw new Error("Failed to fetch presentation");
       }
-      try {
-        const saved = localStorage.getItem("powerpoint-slides");
-        if (saved) {
-          const parsedSlides = JSON.parse(saved);
-          if (Array.isArray(parsedSlides) && parsedSlides.length > 0) {
-            dispatch({ type: "SET_SLIDES", payload: parsedSlides });
-            dispatch({ type: "SET_ACTIVE_SLIDE", payload: parsedSlides[0].id });
-            return;
-          }
-        }
-      } catch (error) {
-        console.error("Error loading slides from localStorage:", error);
-      }
-    };
+      const presentation = await response.json();
 
-    loadSlides();
+      if (
+        presentation &&
+        presentation.slides &&
+        Array.isArray(presentation.slides)
+      ) {
+        // Map server slide documents to local Slide shape
+        const mapped: Slide[] = presentation.slides.map(
+          (s: any, idx: number) => ({
+            id: idx + 1,
+            title: s.title || "",
+            subTitle: s.subtitle || s.subTitle || "",
+            content: s.content || "",
+            image: s.image || "",
+            layout: s.layout || "",
+            backgroundColor: s.backgroundColor || "#ffffff",
+            serverId: s._id || s.id || undefined,
+          })
+        );
+        dispatch({ type: "SET_SLIDES", payload: mapped });
+        dispatch({ type: "SET_ACTIVE_SLIDE", payload: mapped[0].id });
+        dispatch({ type: "SET_CURRENT_SLIDE_INDEX", payload: 0 });
+        return mapped;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching presentation from server:", error);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    // Don't auto-load slides on initial load - wait for user to select a presentation
+    // This ensures the app starts with an empty state
   }, []);
 
   // Persist slides to server whenever slides change (optional)
@@ -334,7 +363,10 @@ export function PresentationProvider({
           backgroundColor: s.backgroundColor || "#ffffff",
         };
 
-        if (typeof slideCopy.image === "string" && slideCopy.image.startsWith("data:")) {
+        if (
+          typeof slideCopy.image === "string" &&
+          slideCopy.image.startsWith("data:")
+        ) {
           try {
             const dataUrl = slideCopy.image;
             const parts = dataUrl.split(",");
@@ -349,7 +381,9 @@ export function PresentationProvider({
               u8[i] = binary.charCodeAt(i);
             }
             const blob = new Blob([u8], { type: mime });
-            const fileName = `upload-${Date.now()}.${mime.split("/")[1] || "png"}`;
+            const fileName = `upload-${Date.now()}.${
+              mime.split("/")[1] || "png"
+            }`;
             const file = new File([blob], fileName, { type: mime });
             const uploadedUrl = await uploadImage(file);
             if (typeof uploadedUrl === "string") {
@@ -438,6 +472,27 @@ export function PresentationProvider({
     dispatch({ type: "SET_CURRENT_SLIDE_ID", payload: id });
   };
 
+  const importPptxFile = async (
+    file: File,
+    opts?: { title?: string; userId?: string }
+  ): Promise<void> => {
+    dispatch({ type: "SET_IMPORTING", payload: true });
+    try {
+      const createdPresentation = await importPptxToServer(file, {
+        title: opts?.title,
+        userId: opts?.userId,
+      });
+      if (createdPresentation?._id) {
+        await loadPresentationById(createdPresentation._id);
+      }
+    } catch (error) {
+      console.error("Error importing PPTX:", error);
+      throw error;
+    } finally {
+      dispatch({ type: "SET_IMPORTING", payload: false });
+    }
+  };
+
   const value: PresentationContextType = {
     state,
     dispatch,
@@ -450,6 +505,8 @@ export function PresentationProvider({
     goToSlide,
     exportPresentation,
     importPresentation,
+    loadPresentationById,
+    importPptxFile,
     setCurrentSlideId, // ✅ added
   };
 

@@ -97,7 +97,8 @@ export function Toolbar({
     dispatch,
     exportPresentation,
     importPresentation,
-    // importPresentationFromServer, // removed - not provided by PresentationContext
+    loadPresentationById,
+    importPptxFile,
   } = usePresentation();
   const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -284,21 +285,30 @@ export function Toolbar({
                         key={presentation._id || presentation.id}
                         className="p-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100"
                         onClick={async () => {
-                          // The PresentationContext doesn't expose a server-import helper.
-                          // We can import the presentation slides using the existing
-                          // `importPresentation` by fetching the presentation JSON from
-                          // the server (presentations endpoint returns slides) or
-                          // by mapping server presentation shape to local Slide shape.
-                          // For now, set the selected presentation into preview mode
-                          // by dispatching UI changes. If you want to auto-load the
-                          // presentation slides, implement a server-to-client mapping
-                          // function here and call `importPresentation` with a File
-                          // or update the PresentationContext to expose a helper.
-                          dispatch({ type: "SET_PREVIEW_MODE", payload: true });
-                          dispatch({
-                            type: "SET_CURRENT_SLIDE_INDEX",
-                            payload: 0,
-                          });
+                          try {
+                            setImportError(null);
+                            const presentationId =
+                              presentation._id || presentation.id;
+                            if (presentationId) {
+                              await loadPresentationById(presentationId);
+                              // Close the dialog after successful load
+                              const dialog =
+                                document.querySelector('[role="dialog"]');
+                              if (dialog) {
+                                const cancelButton = dialog.querySelector(
+                                  '[data-state="open"]'
+                                );
+                                if (cancelButton) {
+                                  (cancelButton as HTMLElement).click();
+                                }
+                              }
+                            }
+                          } catch (error: any) {
+                            console.error("Error loading presentation:", error);
+                            setImportError(
+                              error.message || "Failed to load presentation"
+                            );
+                          }
                         }}
                       >
                         <h3 className="font-medium">{presentation.title}</h3>
@@ -316,6 +326,31 @@ export function Toolbar({
                   </div>
                 </AlertDialogDescription>
               )}
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="text-sm font-medium mb-2">Import from PPTX</div>
+                <input
+                  type="file"
+                  accept=".pptx"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      setImportError(null);
+                      await importPptxFile(file, {
+                        title: presentationTitle || undefined,
+                        userId: selectedUserId || undefined,
+                      });
+                    } catch (err: any) {
+                      console.error("PPTX import failed:", err);
+                      setImportError(
+                        err?.message || "Failed to import PPTX file"
+                      );
+                    } finally {
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }
+                  }}
+                />
+              </div>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={handleExportAndSubmit}>

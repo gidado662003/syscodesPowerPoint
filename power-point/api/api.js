@@ -57,6 +57,17 @@ export async function createPresentation(presentation) {
   return response.data;
 }
 
+export async function importPptxToServer(file, { title, userId } = {}) {
+  const form = new FormData();
+  form.append("file", file);
+  if (title) form.append("title", title);
+  if (userId) form.append("userId", userId);
+  const response = await api.post("/presentations/import-pptx", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response.data; // returns created presentation document
+}
+
 export async function getUsers() {
   const response = await LaravelApi.get("/inventory/users");
   return response.data.data;

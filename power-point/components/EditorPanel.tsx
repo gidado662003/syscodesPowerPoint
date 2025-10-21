@@ -44,6 +44,9 @@ const slideLayouts = [
   { id: "content-only", name: "Content Only", icon: <FaTextHeight /> },
   { id: "image-left", name: "Image Left", icon: <FaImage /> },
   { id: "image-right", name: "Image Right", icon: <FaImage /> },
+  { id: "two-column", name: "Two Column", icon: <FaTextHeight /> },
+  { id: "centered", name: "Centered", icon: <MdOutlineTitle /> },
+  { id: "split-screen", name: "Split Screen", icon: <FaImage /> },
 ];
 
 export function EditorPanel({ onClose }: EditorPanelProps) {
@@ -125,14 +128,20 @@ export function EditorPanel({ onClose }: EditorPanelProps) {
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Debug logs
+    console.log("Selected image file:", file.name, file.size, file.type);
     // Upload the file to the server and store the returned public URL
     (async () => {
       try {
+        setUploadError("");
         setUploading(true);
+        console.log("Uploading image to server...");
         const url = await uploadImage(file);
+        console.log("Upload returned URL:", url);
         handleFieldChange("image", url);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Image upload failed:", err);
+        setUploadError(err?.message || "Image upload failed");
         // Fallback: keep using data URL if upload fails
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -149,6 +158,7 @@ export function EditorPanel({ onClose }: EditorPanelProps) {
   };
 
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   const removeImage = () => {
     handleFieldChange("image", "");
@@ -303,6 +313,7 @@ export function EditorPanel({ onClose }: EditorPanelProps) {
                       accept="image/*"
                       onChange={handleImageUpload}
                       className="hidden"
+                      aria-label="Upload slide image"
                     />
 
                     <div className="flex flex-col space-y-3">
@@ -333,6 +344,11 @@ export function EditorPanel({ onClose }: EditorPanelProps) {
                           >
                             <FaTimes />
                           </button>
+                        </div>
+                      )}
+                      {uploadError && (
+                        <div className="text-sm text-red-400 mt-2">
+                          {uploadError}
                         </div>
                       )}
                     </div>
