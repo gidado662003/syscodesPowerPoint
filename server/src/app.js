@@ -10,7 +10,8 @@ const app = express();
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 // Serve static files from server/public (uploaded images will be placed here)
-app.use(express.static(require("path").join(__dirname, "..", "public")));
+// Serve static files from server/src/public (uploaded images will be placed here)
+app.use(express.static(require("path").join(__dirname, "public")));
 
 app.use(morgan("dev"));
 app.use(
