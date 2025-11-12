@@ -109,17 +109,24 @@ export function Toolbar({
   const [selectedUserId, setSelectedUserId] = useState<string>("");
 
   useEffect(() => {
-    async function fetchUsers() {
+    async function fetchInitialData() {
+      // Fetch presentations and users independently so one failure doesn't block the other
+      try {
+        const presentations = await getAllPresentations();
+        setPresentations(Array.isArray(presentations) ? presentations : []);
+      } catch (error) {
+        console.error("Error fetching presentations:", error);
+        setPresentations([]);
+      }
       try {
         const users = await getUsers();
-        const presentations = await getAllPresentations();
-        setUsers(users);
-        setPresentations(presentations);
+        setUsers(Array.isArray(users) ? users : []);
       } catch (error) {
         console.error("Error fetching users:", error);
+        setUsers([]);
       }
     }
-    fetchUsers();
+    fetchInitialData();
   }, []);
 
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
